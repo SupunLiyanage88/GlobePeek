@@ -8,9 +8,5 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  build: {
-    rollupOptions: {
-      external: ['lodash/debounce'],
-    },
-  }, // <-- this closing brace was missing
+  
 })
