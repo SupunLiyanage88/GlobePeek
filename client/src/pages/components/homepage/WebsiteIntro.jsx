@@ -1,4 +1,6 @@
-import { useState, useRef } from "react";
+import React from 'react';
+import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import {
   FaGlobeAmericas,
@@ -10,8 +12,17 @@ import {
 import logo from "../../../assets/logo/icon.png";
 
 const WebsiteIntro = () => {
+  const navigate = useNavigate();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: false, amount: 0.1 });
+
+  const handleExploreClick = () => {
+    navigate("/explore"); 
+  };
+
+  const handleCompareClick = () => {
+    navigate("/countryCompare"); 
+  };
 
   // Animation variants
   const containerVariants = {
@@ -86,7 +97,7 @@ const WebsiteIntro = () => {
                   Discover the World
                 </span>
               </div>
-              
+
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
                 Explore Our World with{" "}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#007BFF] to-[#00B4D8]">
@@ -104,18 +115,20 @@ const WebsiteIntro = () => {
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={handleExploreClick}
                   className="flex items-center px-8 py-4 rounded-xl shadow-lg text-lg font-medium bg-gradient-to-r from-[#007BFF] to-[#00B4D8] text-white"
                 >
                   Start Exploring
                   <FaArrowRight className="ml-2" />
                 </motion.button>
-                
+
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
+                  onClick={handleCompareClick}
                   className="flex items-center px-8 py-4 rounded-xl shadow-lg text-lg font-medium bg-white text-[#007BFF] border border-[#e2e8f0]"
                 >
-                  Learn More
+                  Compare
                 </motion.button>
               </div>
             </motion.div>
@@ -149,9 +162,13 @@ const WebsiteIntro = () => {
 
                 <motion.div
                   className="absolute inset-0 flex items-center justify-center"
-                  animate={isInView ? {
-                    y: [0, -10, 0],
-                  } : {}}
+                  animate={
+                    isInView
+                      ? {
+                          y: [0, -10, 0],
+                        }
+                      : {}
+                  }
                   transition={{
                     duration: 4,
                     repeat: Infinity,
@@ -167,14 +184,14 @@ const WebsiteIntro = () => {
                   />
                 </motion.div>
               </motion.div>
-              
+
               {/* Floating elements */}
-              <motion.div 
+              <motion.div
                 className="absolute -top-8 -left-8 w-24 h-24 rounded-full bg-[#00B4D8] opacity-20 blur-xl"
                 animate={isInView ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 6, repeat: Infinity }}
               />
-              <motion.div 
+              <motion.div
                 className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-[#007BFF] opacity-20 blur-xl"
                 animate={isInView ? { scale: [1, 1.3, 1] } : {}}
                 transition={{ duration: 8, repeat: Infinity, delay: 1 }}
@@ -184,10 +201,7 @@ const WebsiteIntro = () => {
         </motion.div>
 
         {/* Features Section */}
-        <motion.div 
-          variants={itemVariants} 
-          className="mb-16"
-        >
+        <motion.div variants={itemVariants} className="mb-16">
           <div className="text-center mb-16">
             <motion.h2
               className="text-3xl font-bold mb-4 text-[#1e293b]"

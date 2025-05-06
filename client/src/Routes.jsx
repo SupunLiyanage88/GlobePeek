@@ -21,6 +21,7 @@ const AppRoutes = () => {
         <Route path="/countryCompare" element={<CountryCompare />} />
         <Route path="/country/:countryCode" element={<CountryDetailPage />} />
         <Route path="/explore" element={<ExplorePage />} />
+
       </Routes>
     </Router>
   );

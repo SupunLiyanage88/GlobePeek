@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { FaGithub, FaTwitter, FaLinkedin, FaGlobe } from "react-icons/fa";
+import { FaGithub, FaTwitter, FaLinkedin, FaGlobe, FaFacebook } from "react-icons/fa";
 import logo from "../../assets/logo/icon.png";
 
 const Footer = () => {
@@ -18,28 +18,23 @@ const Footer = () => {
     {
       title: "Resources",
       items: [
-        { name: "API Docs", href: "/api-docs" },
-        { name: "GitHub", href: "https://github.com" },
-        { name: "Data Sources", href: "/sources" },
-        { name: "Tutorials", href: "/tutorials" },
+        { name: "API Docs", href: "https://restcountries.com/" },
+        { name: "GitHub", href: "https://github.com/SupunLiyanage88?tab=repositories" },
       ],
     },
     {
       title: "Company",
       items: [
         { name: "About Us", href: "/about" },
-        { name: "Blog", href: "/blog" },
-        { name: "Careers", href: "/careers" },
-        { name: "Contact", href: "/contact" },
       ],
     },
   ];
 
   const socialLinks = [
-    { icon: <FaGithub />, href: "https://github.com" },
-    { icon: <FaTwitter />, href: "https://twitter.com" },
-    { icon: <FaLinkedin />, href: "https://linkedin.com" },
-    { icon: <FaGlobe />, href: "https://yourwebsite.com" },
+    { icon: <FaGithub />, href: "https://github.com/SupunLiyanage88" },
+    { icon: <FaFacebook />, href: "https://web.facebook.com/supun.liyanage08" },
+    { icon: <FaLinkedin />, href: "https://www.linkedin.com/in/supun-liyanage-600790223/" },
+    { icon: <FaGlobe />, href: "https://supunliyanage.netlify.app/" },
   ];
 
   return (
