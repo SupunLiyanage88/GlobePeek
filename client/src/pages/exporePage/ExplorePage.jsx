@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiGlobe,
@@ -7,21 +7,44 @@ import {
   FiX,
   FiArrowRight,
   FiChevronDown,
-  FiChevronUp
+  FiChevronUp,
+  FiHeart
 } from 'react-icons/fi';
 import { fetchAllCountries, fetchCountriesByRegion } from '../../api/countryApi';
 import CountryCard from '../components/exporePage/CountryCard';
+
 const regions = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania'];
 
 const ExplorePage = () => {
   const [countries, setCountries] = useState([]);
-  const [filteredCountries, setFilteredCountries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showLikedOnly, setShowLikedOnly] = useState(false);
+  const [savedCountries, setSavedCountries] = useState([]);
+  
+  // Reference for measuring filter panel height
+  const filterPanelRef = useRef(null);
+  const [filterPanelHeight, setFilterPanelHeight] = useState(0);
 
+  // Measure filter panel height when it changes
+  useEffect(() => {
+    if (filterPanelRef.current && showFilters) {
+      setFilterPanelHeight(filterPanelRef.current.offsetHeight);
+    }
+  }, [showFilters, selectedRegion]);
+
+  // Load saved countries from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('savedCountries');
+    if (saved) {
+      setSavedCountries(JSON.parse(saved));
+    }
+  }, []);
+
+  // Fetch countries data
   useEffect(() => {
     const loadCountries = async () => {
       try {
@@ -30,12 +53,10 @@ const ExplorePage = () => {
           ? await fetchCountriesByRegion(selectedRegion)
           : await fetchAllCountries();
         setCountries(data);
-        setFilteredCountries(data);
         setError(null);
       } catch (err) {
         setError(err.message);
         setCountries([]);
-        setFilteredCountries([]);
       } finally {
         setLoading(false);
       }
@@ -44,21 +65,25 @@ const ExplorePage = () => {
     loadCountries();
   }, [selectedRegion]);
 
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredCountries(countries);
-    } else {
-      const filtered = countries.filter(country =>
+  // Filter countries based on search term, region, and liked status
+  const filteredCountries = useMemo(() => {
+    return countries.filter(country => {
+      // Filter by search term
+      const matchesSearch = searchTerm.trim() === '' || 
         country.name.common.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        country.name.official.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredCountries(filtered);
-    }
-  }, [searchTerm, countries]);
+        country.name.official.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filter by liked status if enabled
+      const matchesLiked = !showLikedOnly || savedCountries.includes(country.cca3);
+      
+      return matchesSearch && matchesLiked;
+    });
+  }, [countries, searchTerm, showLikedOnly, savedCountries]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedRegion('');
+    setShowLikedOnly(false);
     setShowFilters(false);
   };
 
@@ -145,7 +170,7 @@ const ExplorePage = () => {
   }
 
   return (
-    <div className=' mt-10 md:mt-36' style={{ backgroundColor: 'var(--color-background) ', minHeight: '100vh' }}>
+    <div className='mt-10 md:mt-36' style={{ backgroundColor: 'var(--color-background)', minHeight: '100vh' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <motion.div 
@@ -194,45 +219,69 @@ const ExplorePage = () => {
               )}
             </div>
             
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl whitespace-nowrap font-medium shadow-sm"
-              style={{ 
-                backgroundColor: showFilters ? 'var(--color-primary)' : 'var(--color-surface)',
-                color: showFilters ? 'var(--color-text-white)' : 'var(--color-text)'
-              }}
-            >
-              <FiFilter />
-              <span>Filters</span>
-              {showFilters ? <FiChevronUp /> : <FiChevronDown />}
-            </motion.button>
+            <div className="flex gap-2">
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setShowLikedOnly(!showLikedOnly)}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl whitespace-nowrap font-medium shadow-sm"
+                style={{ 
+                  backgroundColor: showLikedOnly ? 'var(--color-primary)' : 'var(--color-surface)',
+                  color: showLikedOnly ? 'var(--color-text-white)' : 'var(--color-text)'
+                }}
+              >
+                <FiHeart fill={showLikedOnly ? 'currentColor' : 'none'} />
+                <span>Saved</span>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl whitespace-nowrap font-medium shadow-sm"
+                style={{ 
+                  backgroundColor: showFilters ? 'var(--color-primary)' : 'var(--color-surface)',
+                  color: showFilters ? 'var(--color-text-white)' : 'var(--color-text)'
+                }}
+              >
+                <FiFilter />
+                <span>Filters</span>
+                {showFilters ? <FiChevronUp /> : <FiChevronDown />}
+              </motion.button>
+            </div>
           </div>
 
-          {/* Filters Panel */}
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className="mt-4 p-4 rounded-xl shadow-sm"
-                style={{ backgroundColor: 'var(--color-surface)' }}
+          {/* Optimized Filters Panel with smooth animation */}
+          <div className="relative">
+            <motion.div
+              initial={false}
+              animate={{ 
+                height: showFilters ? filterPanelHeight : 0,
+                opacity: showFilters ? 1 : 0,
+                marginTop: showFilters ? 16 : 0
+              }}
+              transition={{ 
+                height: { type: "spring", stiffness: 500, damping: 40, mass: 1 },
+                opacity: { duration: 0.2 }
+              }}
+              className="overflow-hidden rounded-xl shadow-sm"
+              style={{ backgroundColor: 'var(--color-surface)' }}
+            >
+              <div 
+                ref={filterPanelRef} 
+                className="p-4"
               >
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-text-light)' }}>
+                  Filter by Region
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                   {regions.map(region => (
                     <motion.button
                       key={region}
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => setSelectedRegion(selectedRegion === region ? '' : region)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                        selectedRegion === region 
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors`}
                       style={{ 
                         backgroundColor: selectedRegion === region 
                           ? 'var(--color-primary)' 
@@ -247,21 +296,21 @@ const ExplorePage = () => {
                   ))}
                 </div>
                 
-                {(searchTerm || selectedRegion) && (
+                {(searchTerm || selectedRegion || showLikedOnly) && (
                   <motion.button
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     onClick={clearFilters}
-                    className="flex items-center gap-1 mt-4 text-sm text-blue-500 hover:text-blue-700"
+                    className="flex items-center gap-1 mt-4 text-sm hover:text-blue-700"
                     style={{ color: 'var(--color-primary)' }}
                   >
                     <FiX size={14} />
                     <span>Clear all filters</span>
                   </motion.button>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </motion.div>
+          </div>
         </motion.div>
 
         {/* Results Info */}
@@ -275,6 +324,9 @@ const ExplorePage = () => {
             Showing <span className="font-medium">{formatNumber(filteredCountries.length)}</span> countries
             {selectedRegion && (
               <span> in <span className="font-medium">{selectedRegion}</span></span>
+            )}
+            {showLikedOnly && (
+              <span> (Saved only)</span>
             )}
           </div>
         </motion.div>
@@ -292,6 +344,7 @@ const ExplorePage = () => {
                 key={country.cca3}
                 country={country}
                 index={index}
+                isSaved={savedCountries.includes(country.cca3)}
               />
             ))}
           </motion.div>
@@ -307,10 +360,12 @@ const ExplorePage = () => {
               <FiGlobe className="text-4xl" style={{ color: 'var(--color-primary)' }} />
             </div>
             <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
-              No Countries Found
+              {showLikedOnly ? 'No Saved Countries' : 'No Countries Found'}
             </h2>
             <p className="max-w-md mb-6" style={{ color: 'var(--color-text-light)' }}>
-              Try adjusting your search or filters to find what you're looking for.
+              {showLikedOnly 
+                ? 'You haven\'t saved any countries yet. Explore and save your favorites!'
+                : 'Try adjusting your search or filters to find what you\'re looking for.'}
             </p>
             <motion.button
               whileHover={{ scale: 1.03 }}

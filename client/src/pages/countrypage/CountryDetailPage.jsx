@@ -2,38 +2,30 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  FiArrowLeft,
   FiMapPin,
   FiGlobe,
   FiUsers,
   FiBook,
   FiDollarSign,
   FiFlag,
-  FiShare2,
-  FiCopy,
-  FiSun,
-  FiMoon,
   FiClock,
   FiPhone,
   FiCompass,
-  FiBarChart2,
-  FiCloudRain,
   FiHeart,
   FiInfo,
   FiMap,
   FiChevronRight,
   FiThermometer,
   FiDroplet,
-  FiWind,
-  FiCalendar,
-  FiTrendingUp,
   FiLayers,
   FiCoffee,
   FiShield,
   FiGrid,
-  FiTrendingDown,
+  FiCopy,
 } from "react-icons/fi";
 import { fetchCountryByCode } from "../../api/countryApi";
+import { cardVariants } from "../../lib/variants";
+import CountryHeader from "../components/countryPage/CountryHeader";
 
 const googleMapKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -43,7 +35,7 @@ const TabButton = ({ label, icon, isActive, onClick }) => (
     whileHover={{ scale: 1.03 }}
     whileTap={{ scale: 0.97 }}
     onClick={onClick}
-    className={`flex items-center gap-2 px-5 py-3 rounded-xl whitespace-nowrap ${
+    className={`flex items-center gap-2 px-5 py-3 rounded-xl whitespace-nowrap transition-colors ${
       isActive ? "shadow-md font-medium" : "hover:bg-opacity-50"
     }`}
     style={{
@@ -62,22 +54,36 @@ const TabButton = ({ label, icon, isActive, onClick }) => (
 const InfoItem = ({ icon, label, value }) => (
   <div className="flex items-start gap-3">
     <div
-      className="p-2 rounded-lg mt-1"
+      className="p-2 rounded-lg mt-1 flex-shrink-0"
       style={{ backgroundColor: "rgba(0, 123, 255, 0.1)" }}
     >
       {icon}
     </div>
-    <div>
+    <div className="min-w-0">
       <p
-        className="text-sm font-medium mb-1"
+        className="text-sm font-medium mb-1 truncate"
         style={{ color: "var(--color-text-light)" }}
       >
         {label}
       </p>
-      <p className="font-medium" style={{ color: "var(--color-text)" }}>
+      <p
+        className="font-medium truncate"
+        style={{ color: "var(--color-text)" }}
+      >
         {value || "—"}
       </p>
     </div>
+  </div>
+);
+
+// Exchange Rate Display Component
+const ExchangeRateDisplay = ({ base, rate, currencyName }) => (
+  <div className="flex items-center gap-2 bg-white bg-opacity-20 rounded-lg px-3 py-2 backdrop-blur-sm">
+    <span className="font-bold">1 {base}</span>
+    <span className="text-sm opacity-80">≈</span>
+    <span className="font-bold">
+      {rate.toFixed(4)} {currencyName}
+    </span>
   </div>
 );
 
@@ -89,7 +95,6 @@ const CountryDetail = () => {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  const [weather, setWeather] = useState(null);
   const [savedCountries, setSavedCountries] = useState(() => {
     const saved = localStorage.getItem("savedCountries");
     return saved ? JSON.parse(saved) : [];
@@ -105,7 +110,6 @@ const CountryDetail = () => {
         setCountry(data);
         checkIfSaved(data.cca3);
         setLoading(false);
-        fetchWeatherData(data);
         fetchExchangeRates(data);
         calculateLocalTime(data);
       } catch (err) {
@@ -116,47 +120,32 @@ const CountryDetail = () => {
 
     fetchCountry();
 
-    // Set up interval to update local time
     const timeInterval = setInterval(() => {
       if (country) {
         calculateLocalTime(country);
       }
-    }, 60000); // Update every minute
+    }, 60000);
 
     return () => clearInterval(timeInterval);
   }, [countryCode]);
-
-  const fetchWeatherData = async (country) => {
-    if (!country.capital || country.capital.length === 0) return;
-
-    try {
-      const capital = country.capital[0];
-      const response = await fetch(
-        `http://api.weatherapi.com/v1/current.json?key=YOUR_KEY&q=${capital}&aqi=no`
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setWeather(data);
-      }
-    } catch (error) {
-      console.error("Error fetching weather data:", error);
-    }
-  };
 
   const fetchExchangeRates = async (country) => {
     if (!country.currencies) return;
 
     try {
       const currencyCode = Object.keys(country.currencies)[0];
-      const response = await fetch(`https://open.er-api.com/v6/latest/USD`);
+      const response = await fetch(
+        `https://open.er-api.com/v6/latest/${currencyCode}`
+      );
 
       if (response.ok) {
         const data = await response.json();
+        const usdRate = 1 / data.rates.USD; // Convert to how much USD is worth in local currency
         setExchangeRates({
-          base: "USD",
-          rates: data.rates,
-          countryCurrency: currencyCode,
+          base: currencyCode,
+          rate: usdRate,
+          symbol: country.currencies[currencyCode]?.symbol || currencyCode,
+          name: country.currencies[currencyCode]?.name || currencyCode,
         });
       }
     } catch (error) {
@@ -168,39 +157,28 @@ const CountryDetail = () => {
     if (!country.timezones || country.timezones.length === 0) return;
 
     try {
-      // Get first timezone
-      const timezone = country.timezones[0].replace("UTC", "").replace(":", "");
+      const timezone = country.timezones[0];
+      const options = {
+        timeZone: timezone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      };
 
-      // Create Date object for the timezone
+      const timeFormatter = new Intl.DateTimeFormat([], options);
+      const dateFormatter = new Intl.DateTimeFormat([], {
+        timeZone: timezone,
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
       const now = new Date();
-      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-
-      // Parse the timezone offset
-      let offset = 0;
-      if (timezone) {
-        const match = timezone.match(/([+-])(\d+)(?::(\d+))?/);
-        if (match) {
-          const sign = match[1] === "+" ? 1 : -1;
-          const hours = parseInt(match[2] || 0);
-          const minutes = parseInt(match[3] || 0);
-          offset = sign * (hours * 3600000 + minutes * 60000);
-        }
-      }
-
-      const localDate = new Date(utc + offset);
-
       setLocalTime({
-        time: localDate.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        date: localDate.toLocaleDateString([], {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
-        timezone: country.timezones[0],
+        time: timeFormatter.format(now),
+        date: dateFormatter.format(now),
+        timezone: timezone,
       });
     } catch (error) {
       console.error("Error calculating local time:", error);
@@ -235,18 +213,9 @@ const CountryDetail = () => {
     setIsSaved(!isSaved);
   };
 
-  // Card animation variants
-  const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-  };
-
   if (loading) {
     return (
-      <div
-        className="flex items-center justify-center h-screen"
-        style={{ backgroundColor: "var(--color-background)" }}
-      >
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -291,15 +260,11 @@ const CountryDetail = () => {
 
   if (error) {
     return (
-      <div
-        className="flex items-center justify-center h-screen"
-        style={{ backgroundColor: "var(--color-background)" }}
-      >
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="p-8 bg-white rounded-2xl shadow-lg text-center max-w-md"
-          style={{ backgroundColor: "var(--color-surface)" }}
         >
           <div className="mb-6">
             <motion.div
@@ -314,21 +279,15 @@ const CountryDetail = () => {
               <FiGlobe className="text-red-500 text-4xl" />
             </motion.div>
           </div>
-          <h2
-            className="text-2xl font-bold mb-2"
-            style={{ color: "var(--color-text)" }}
-          >
+          <h2 className="text-2xl font-bold mb-2 text-gray-800">
             Connection Error
           </h2>
-          <p className="mb-6" style={{ color: "var(--color-text-light)" }}>
-            {error}
-          </p>
+          <p className="mb-6 text-gray-600">{error}</p>
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate(-1)}
-            className="px-6 py-3 rounded-lg font-medium text-white shadow-md"
-            style={{ backgroundColor: "var(--color-primary)" }}
+            className="px-6 py-3 rounded-lg font-medium text-white shadow-md bg-blue-600 hover:bg-blue-700 transition-colors"
           >
             Return to Countries
           </motion.button>
@@ -339,15 +298,11 @@ const CountryDetail = () => {
 
   if (!country) {
     return (
-      <div
-        className="flex items-center justify-center h-screen"
-        style={{ backgroundColor: "var(--color-background)" }}
-      >
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-8 rounded-2xl shadow-lg text-center max-w-md"
-          style={{ backgroundColor: "var(--color-surface)" }}
+          className="p-8 bg-white rounded-2xl shadow-lg text-center max-w-md"
         >
           <div className="mb-6">
             <motion.div
@@ -364,21 +319,17 @@ const CountryDetail = () => {
               <FiMapPin className="text-gray-400 text-3xl" />
             </motion.div>
           </div>
-          <h2
-            className="text-2xl font-bold mb-2"
-            style={{ color: "var(--color-text)" }}
-          >
+          <h2 className="text-2xl font-bold mb-2 text-gray-800">
             Country Not Found
           </h2>
-          <p className="mb-6" style={{ color: "var(--color-text-light)" }}>
+          <p className="mb-6 text-gray-600">
             We couldn't find information for this country code.
           </p>
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate(-1)}
-            className="px-6 py-3 rounded-lg font-medium text-white shadow-md"
-            style={{ backgroundColor: "var(--color-primary)" }}
+            className="px-6 py-3 rounded-lg font-medium text-white shadow-md bg-blue-600 hover:bg-blue-700 transition-colors"
           >
             Explore Other Countries
           </motion.button>
@@ -388,214 +339,18 @@ const CountryDetail = () => {
   }
 
   return (
-    <div
-      style={{ backgroundColor: "var(--color-background)", minHeight: "100vh" }}
-    >
+    <div className="min-h-screen mt-24 md:5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Header with Back Button */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex justify-between items-center mb-8"
-        >
-          <motion.button
-            whileHover={{ x: -3 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg shadow-sm hover:shadow transition-all font-medium"
-            style={{
-              backgroundColor: "var(--color-surface)",
-              color: "var(--color-text)",
-            }}
-          >
-            <FiArrowLeft />
-            Back
-          </motion.button>
-
-          <div className="flex gap-2">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={toggleSaveCountry}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm text-sm font-medium"
-              style={{
-                backgroundColor: isSaved
-                  ? "var(--color-primary)"
-                  : "var(--color-surface)",
-                color: isSaved
-                  ? "var(--color-text-white)"
-                  : "var(--color-text)",
-              }}
-            >
-              <FiHeart className={isSaved ? "fill-current" : ""} />
-              <span>{isSaved ? "Saved" : "Save"}</span>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={copyToClipboard}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm text-sm font-medium"
-              style={{
-                backgroundColor: "var(--color-surface)",
-                color: "var(--color-text)",
-              }}
-            >
-              {copied ? (
-                <>
-                  <FiCopy style={{ color: "var(--color-accent)" }} />
-                  <span>Copied!</span>
-                </>
-              ) : (
-                <>
-                  <FiShare2 />
-                  <span>Share</span>
-                </>
-              )}
-            </motion.button>
-          </div>
-        </motion.div>
-
         {/* Country Hero Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="relative overflow-hidden rounded-3xl shadow-lg mb-8"
-          style={{ backgroundColor: "var(--color-surface)" }}
-        >
-          <div className="absolute inset-0 opacity-10 overflow-hidden">
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: `url(${
-                  country.flags.svg || country.flags.png
-                })`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                filter: "blur(40px)",
-                transform: "scale(1.2)",
-              }}
-            ></div>
-          </div>
-
-          <div className="relative p-8 flex flex-col md:flex-row items-center gap-8">
-            <motion.div
-              whileHover={{ rotate: 1, scale: 1.02 }}
-              className="w-full md:w-64 h-48 flex-shrink-0"
-            >
-              <img
-                src={country.flags.svg || country.flags.png}
-                alt={`Flag of ${country.name.common}`}
-                className="w-full h-full object-cover rounded-2xl shadow-lg"
-                style={{ border: "4px solid rgba(255, 255, 255, 0.2)" }}
-              />
-            </motion.div>
-
-            <div className="flex-1 text-center md:text-left">
-              <div className="flex flex-col md:flex-row md:items-center gap-3 justify-center md:justify-start mb-4">
-                <h1
-                  className="text-4xl md:text-5xl font-bold"
-                  style={{ color: "var(--color-text)" }}
-                >
-                  {country.name.common}
-                </h1>
-                {country.cca3 && (
-                  <span
-                    className="px-3 py-1 rounded-full text-sm font-bold self-center"
-                    style={{
-                      backgroundColor: "var(--color-primary-light)",
-                      color: "var(--color-text-white)",
-                    }}
-                  >
-                    {country.cca3}
-                  </span>
-                )}
-              </div>
-
-              <p
-                className="text-lg mb-6"
-                style={{ color: "var(--color-text-light)" }}
-              >
-                {country.name.official}
-              </p>
-
-              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-                {country.region && (
-                  <span
-                    className="px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2"
-                    style={{
-                      backgroundColor: "var(--color-primary)",
-                      color: "var(--color-text-white)",
-                    }}
-                  >
-                    <FiGlobe className="text-white" />
-                    {country.region}
-                  </span>
-                )}
-                {country.subregion && (
-                  <span
-                    className="px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2"
-                    style={{
-                      backgroundColor: "rgba(255, 255, 255, 0.2)",
-                      color: "var(--color-text)",
-                    }}
-                  >
-                    <FiMapPin />
-                    {country.subregion}
-                  </span>
-                )}
-                {localTime && (
-                  <span
-                    className="px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2"
-                    style={{
-                      backgroundColor: "var(--color-accent)",
-                      color: "var(--color-text-white)",
-                    }}
-                  >
-                    <FiClock className="text-white" />
-                    {localTime.time}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Weather for capital city */}
-            {weather && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
-                className="absolute top-4 right-4 p-4 rounded-xl shadow-md bg-white/80 backdrop-blur-md"
-              >
-                <div className="flex items-center gap-3">
-                  <div>
-                    <img
-                      src={`http://openweathermap.org/img/wn/${weather.weather[0].icon}@2x.png`}
-                      alt={weather.weather[0].description}
-                      width="50"
-                      height="50"
-                    />
-                  </div>
-                  <div>
-                    <div
-                      className="text-2xl font-bold"
-                      style={{ color: "var(--color-text)" }}
-                    >
-                      {Math.round(weather.main.temp)}°C
-                    </div>
-                    <div
-                      className="text-sm capitalize"
-                      style={{ color: "var(--color-text-light)" }}
-                    >
-                      {country.capital[0]}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
+        <CountryHeader
+          country={country}
+          localTime={localTime}
+          exchangeRates={exchangeRates}
+          isSaved={isSaved}
+          toggleSaveCountry={toggleSaveCountry}
+          copied={copied}
+          copyToClipboard={copyToClipboard}
+        />
 
         {/* Tabs Navigation */}
         <motion.div
@@ -618,16 +373,10 @@ const CountryDetail = () => {
               onClick={() => setActiveTab("geography")}
             />
             <TabButton
-              label="Economy"
-              icon={<FiBarChart2 />}
-              isActive={activeTab === "economy"}
-              onClick={() => setActiveTab("economy")}
-            />
-            <TabButton
-              label="Climate"
-              icon={<FiCloudRain />}
-              isActive={activeTab === "climate"}
-              onClick={() => setActiveTab("climate")}
+              label="Time & Currency"
+              icon={<FiClock />}
+              isActive={activeTab === "time"}
+              onClick={() => setActiveTab("time")}
             />
           </div>
         </motion.div>
@@ -651,31 +400,16 @@ const CountryDetail = () => {
                     initial="hidden"
                     animate="visible"
                     transition={{ delay: 0.1 }}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    className="p-6 rounded-2xl shadow-md"
-                    style={{ backgroundColor: "var(--color-surface)" }}
+                    whileHover={{ y: -5 }}
+                    className="p-6 rounded-2xl shadow-md bg-white hover:shadow-lg transition-shadow"
                   >
                     <div className="flex items-center gap-4 mb-4">
-                      <div
-                        className="p-3 rounded-lg"
-                        style={{ backgroundColor: "rgba(0, 123, 255, 0.1)" }}
-                      >
-                        <FiMapPin
-                          style={{ color: "var(--color-primary)" }}
-                          className="text-xl"
-                        />
+                      <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+                        <FiMapPin className="text-xl" />
                       </div>
-                      <h3
-                        className="font-medium"
-                        style={{ color: "var(--color-text-light)" }}
-                      >
-                        Capital
-                      </h3>
+                      <h3 className="font-medium text-gray-500">Capital</h3>
                     </div>
-                    <p
-                      className="text-2xl font-bold"
-                      style={{ color: "var(--color-text)" }}
-                    >
+                    <p className="text-2xl font-bold text-gray-900">
                       {country.capital?.[0] || "—"}
                     </p>
                   </motion.div>
@@ -685,31 +419,16 @@ const CountryDetail = () => {
                     initial="hidden"
                     animate="visible"
                     transition={{ delay: 0.2 }}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    className="p-6 rounded-2xl shadow-md"
-                    style={{ backgroundColor: "var(--color-surface)" }}
+                    whileHover={{ y: -5 }}
+                    className="p-6 rounded-2xl shadow-md bg-white hover:shadow-lg transition-shadow"
                   >
                     <div className="flex items-center gap-4 mb-4">
-                      <div
-                        className="p-3 rounded-lg"
-                        style={{ backgroundColor: "rgba(0, 180, 216, 0.1)" }}
-                      >
-                        <FiUsers
-                          style={{ color: "var(--color-accent)" }}
-                          className="text-xl"
-                        />
+                      <div className="p-3 rounded-lg bg-cyan-50 text-cyan-600">
+                        <FiUsers className="text-xl" />
                       </div>
-                      <h3
-                        className="font-medium"
-                        style={{ color: "var(--color-text-light)" }}
-                      >
-                        Population
-                      </h3>
+                      <h3 className="font-medium text-gray-500">Population</h3>
                     </div>
-                    <p
-                      className="text-2xl font-bold"
-                      style={{ color: "var(--color-text)" }}
-                    >
+                    <p className="text-2xl font-bold text-gray-900">
                       {formatNumber(country.population)}
                     </p>
                   </motion.div>
@@ -719,31 +438,16 @@ const CountryDetail = () => {
                     initial="hidden"
                     animate="visible"
                     transition={{ delay: 0.3 }}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    className="p-6 rounded-2xl shadow-md"
-                    style={{ backgroundColor: "var(--color-surface)" }}
+                    whileHover={{ y: -5 }}
+                    className="p-6 rounded-2xl shadow-md bg-white hover:shadow-lg transition-shadow"
                   >
                     <div className="flex items-center gap-4 mb-4">
-                      <div
-                        className="p-3 rounded-lg"
-                        style={{ backgroundColor: "rgba(90, 190, 255, 0.1)" }}
-                      >
-                        <FiBook
-                          style={{ color: "var(--color-primary-light)" }}
-                          className="text-xl"
-                        />
+                      <div className="p-3 rounded-lg bg-indigo-50 text-indigo-600">
+                        <FiBook className="text-xl" />
                       </div>
-                      <h3
-                        className="font-medium"
-                        style={{ color: "var(--color-text-light)" }}
-                      >
-                        Languages
-                      </h3>
+                      <h3 className="font-medium text-gray-500">Languages</h3>
                     </div>
-                    <p
-                      className="text-lg font-medium"
-                      style={{ color: "var(--color-text)" }}
-                    >
+                    <p className="text-lg font-medium text-gray-900">
                       {country.languages
                         ? Object.values(country.languages)
                             .slice(0, 2)
@@ -751,7 +455,7 @@ const CountryDetail = () => {
                         : "—"}
                       {country.languages &&
                         Object.values(country.languages).length > 2 && (
-                          <span style={{ color: "var(--color-text-light)" }}>
+                          <span className="text-gray-500">
                             {" "}
                             +{Object.values(country.languages).length - 2}
                           </span>
@@ -764,31 +468,16 @@ const CountryDetail = () => {
                     initial="hidden"
                     animate="visible"
                     transition={{ delay: 0.4 }}
-                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    className="p-6 rounded-2xl shadow-md"
-                    style={{ backgroundColor: "var(--color-surface)" }}
+                    whileHover={{ y: -5 }}
+                    className="p-6 rounded-2xl shadow-md bg-white hover:shadow-lg transition-shadow"
                   >
                     <div className="flex items-center gap-4 mb-4">
-                      <div
-                        className="p-3 rounded-lg"
-                        style={{ backgroundColor: "rgba(0, 123, 255, 0.1)" }}
-                      >
-                        <FiDollarSign
-                          style={{ color: "var(--color-primary)" }}
-                          className="text-xl"
-                        />
+                      <div className="p-3 rounded-lg bg-green-50 text-green-600">
+                        <FiDollarSign className="text-xl" />
                       </div>
-                      <h3
-                        className="font-medium"
-                        style={{ color: "var(--color-text-light)" }}
-                      >
-                        Currency
-                      </h3>
+                      <h3 className="font-medium text-gray-500">Currency</h3>
                     </div>
-                    <p
-                      className="text-lg font-medium"
-                      style={{ color: "var(--color-text)" }}
-                    >
+                    <p className="text-lg font-medium text-gray-900">
                       {country.currencies
                         ? Object.values(country.currencies)
                             .map((c) =>
@@ -806,18 +495,14 @@ const CountryDetail = () => {
                   initial="hidden"
                   animate="visible"
                   transition={{ delay: 0.5 }}
-                  className="p-6 rounded-2xl shadow-md mb-8"
-                  style={{ backgroundColor: "var(--color-surface)" }}
+                  className="p-6 rounded-2xl shadow-md mb-8 bg-white"
                 >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
+                  <h2 className="text-xl font-bold mb-6 text-gray-900">
                     Country Details
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <InfoItem
-                      icon={<FiGlobe />}
+                      icon={<FiGlobe className="text-blue-600" />}
                       label="Region"
                       value={`${country.region}${
                         country.subregion ? ` (${country.subregion})` : ""
@@ -825,7 +510,7 @@ const CountryDetail = () => {
                     />
 
                     <InfoItem
-                      icon={<FiClock />}
+                      icon={<FiClock className="text-indigo-600" />}
                       label="Local Time"
                       value={
                         localTime
@@ -835,7 +520,7 @@ const CountryDetail = () => {
                     />
 
                     <InfoItem
-                      icon={<FiPhone />}
+                      icon={<FiPhone className="text-green-600" />}
                       label="Calling Code"
                       value={
                         country.idd?.root && country.idd?.suffixes
@@ -847,7 +532,7 @@ const CountryDetail = () => {
                     />
 
                     <InfoItem
-                      icon={<FiCompass />}
+                      icon={<FiCompass className="text-amber-600" />}
                       label="Drives On"
                       value={
                         country.car?.side
@@ -858,13 +543,13 @@ const CountryDetail = () => {
                     />
 
                     <InfoItem
-                      icon={<FiFlag />}
+                      icon={<FiFlag className="text-red-600" />}
                       label="TLD"
                       value={country.tld?.join(", ") || "—"}
                     />
 
                     <InfoItem
-                      icon={<FiShield />}
+                      icon={<FiShield className="text-purple-600" />}
                       label="UN Member"
                       value={country.unMember ? "Yes" : "No"}
                     />
@@ -878,14 +563,10 @@ const CountryDetail = () => {
                     initial="hidden"
                     animate="visible"
                     transition={{ delay: 0.6 }}
-                    className="rounded-2xl shadow-md overflow-hidden mb-8"
-                    style={{ backgroundColor: "var(--color-surface)" }}
+                    className="rounded-2xl shadow-md overflow-hidden mb-8 bg-white"
                   >
                     <div className="p-6">
-                      <h2
-                        className="text-xl font-bold mb-4"
-                        style={{ color: "var(--color-text)" }}
-                      >
+                      <h2 className="text-xl font-bold mb-4 text-gray-900">
                         Location Map
                       </h2>
                       <div className="aspect-w-16 aspect-h-9 rounded-xl overflow-hidden">
@@ -912,18 +593,14 @@ const CountryDetail = () => {
                   initial="hidden"
                   animate="visible"
                   transition={{ delay: 0.1 }}
-                  className="p-6 rounded-2xl shadow-md"
-                  style={{ backgroundColor: "var(--color-surface)" }}
+                  className="p-6 rounded-2xl shadow-md bg-white"
                 >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
+                  <h2 className="text-xl font-bold mb-6 text-gray-900">
                     Geographical Information
                   </h2>
                   <div className="space-y-6">
                     <InfoItem
-                      icon={<FiMapPin />}
+                      icon={<FiMapPin className="text-blue-600" />}
                       label="Coordinates"
                       value={
                         country.latlng
@@ -933,7 +610,7 @@ const CountryDetail = () => {
                     />
 
                     <InfoItem
-                      icon={<FiLayers />}
+                      icon={<FiLayers className="text-amber-600" />}
                       label="Area"
                       value={
                         country.area ? `${formatNumber(country.area)} km²` : "—"
@@ -941,13 +618,13 @@ const CountryDetail = () => {
                     />
 
                     <InfoItem
-                      icon={<FiCompass />}
+                      icon={<FiCompass className="text-green-600" />}
                       label="Landlocked"
                       value={country.landlocked ? "Yes" : "No"}
                     />
 
                     <InfoItem
-                      icon={<FiDroplet />}
+                      icon={<FiDroplet className="text-cyan-600" />}
                       label="Coastline"
                       value={country.landlocked ? "None" : "Yes"}
                     />
@@ -955,19 +632,11 @@ const CountryDetail = () => {
                     {country.borders && (
                       <div>
                         <div className="flex items-start gap-3 mb-3">
-                          <div
-                            className="p-2 rounded-lg mt-1"
-                            style={{
-                              backgroundColor: "rgba(0, 123, 255, 0.1)",
-                            }}
-                          >
+                          <div className="p-2 rounded-lg mt-1 bg-blue-50 text-blue-600">
                             <FiFlag />
                           </div>
                           <div>
-                            <p
-                              className="text-sm font-medium mb-2"
-                              style={{ color: "var(--color-text-light)" }}
-                            >
+                            <p className="text-sm font-medium mb-2 text-gray-500">
                               Bordering Countries
                             </p>
                             <div className="flex flex-wrap gap-2">
@@ -979,12 +648,7 @@ const CountryDetail = () => {
                                   onClick={() =>
                                     navigate(`/country/${borderCode}`)
                                   }
-                                  className="px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-1"
-                                  style={{
-                                    backgroundColor:
-                                      "var(--color-primary-light)",
-                                    color: "var(--color-text-white)",
-                                  }}
+                                  className="px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-1 bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
                                 >
                                   {borderCode}
                                   <FiChevronRight size={14} />
@@ -1003,36 +667,32 @@ const CountryDetail = () => {
                   initial="hidden"
                   animate="visible"
                   transition={{ delay: 0.2 }}
-                  className="p-6 rounded-2xl shadow-md"
-                  style={{ backgroundColor: "var(--color-surface)" }}
+                  className="p-6 rounded-2xl shadow-md bg-white"
                 >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
+                  <h2 className="text-xl font-bold mb-6 text-gray-900">
                     Terrain & Climate
                   </h2>
                   <div className="space-y-6">
                     <InfoItem
-                      icon={<FiGrid />}
+                      icon={<FiGrid className="text-emerald-600" />}
                       label="Terrain"
                       value={country.terrain || "—"}
                     />
 
                     <InfoItem
-                      icon={<FiThermometer />}
+                      icon={<FiThermometer className="text-red-600" />}
                       label="Climate"
                       value={country.climate || "—"}
                     />
 
                     <InfoItem
-                      icon={<FiDroplet />}
+                      icon={<FiDroplet className="text-blue-600" />}
                       label="Natural Resources"
                       value={country.naturalResources || "—"}
                     />
 
                     <InfoItem
-                      icon={<FiCoffee />}
+                      icon={<FiCoffee className="text-amber-600" />}
                       label="Land Use"
                       value={country.landUse || "—"}
                     />
@@ -1041,287 +701,66 @@ const CountryDetail = () => {
               </div>
             )}
 
-            {/* Economy Tab */}
-            {activeTab === "economy" && (
+            {/* Time & Currency Tab */}
+            {activeTab === "time" && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <motion.div
                   variants={cardVariants}
                   initial="hidden"
                   animate="visible"
                   transition={{ delay: 0.1 }}
-                  className="p-6 rounded-2xl shadow-md"
-                  style={{ backgroundColor: "var(--color-surface)" }}
+                  className="p-6 rounded-2xl shadow-md bg-white"
                 >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
-                    Economic Indicators
+                  <h2 className="text-xl font-bold mb-6 text-gray-900">
+                    Time Information
                   </h2>
                   <div className="space-y-6">
-                    <InfoItem
-                      icon={<FiDollarSign />}
-                      label="GDP (PPP)"
-                      value={
-                        country.gdp ? `$${formatNumber(country.gdp)}` : "—"
-                      }
-                    />
-
-                    <InfoItem
-                      icon={<FiTrendingUp />}
-                      label="GDP Growth Rate"
-                      value={country.gdpGrowth ? `${country.gdpGrowth}%` : "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiBarChart2 />}
-                      label="GDP Per Capita"
-                      value={
-                        country.gdpPerCapita
-                          ? `$${formatNumber(country.gdpPerCapita)}`
-                          : "—"
-                      }
-                    />
-
-                    <InfoItem
-                      icon={<FiUsers />}
-                      label="Labor Force"
-                      value={
-                        country.laborForce
-                          ? formatNumber(country.laborForce)
-                          : "—"
-                      }
-                    />
-
-                    <InfoItem
-                      icon={<FiCompass />}
-                      label="Main Industries"
-                      value={country.industries || "—"}
-                    />
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  variants={cardVariants}
-                  initial="hidden"
-                  animate="visible"
-                  transition={{ delay: 0.2 }}
-                  className="p-6 rounded-2xl shadow-md"
-                  style={{ backgroundColor: "var(--color-surface)" }}
-                >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
-                    Trade & Currency
-                  </h2>
-                  <div className="space-y-6">
-                    {exchangeRates && country.currencies && (
-                      <InfoItem
-                        icon={<FiDollarSign />}
-                        label="Exchange Rate"
-                        value={`1 USD = ${exchangeRates.rates[
-                          exchangeRates.countryCurrency
-                        ].toFixed(4)} ${exchangeRates.countryCurrency}`}
-                      />
+                    {localTime ? (
+                      <>
+                        <InfoItem
+                          icon={<FiClock className="text-indigo-600" />}
+                          label="Current Time"
+                          value={localTime.time}
+                        />
+                        <InfoItem
+                          icon={<FiCalendar className="text-blue-600" />}
+                          label="Current Date"
+                          value={localTime.date}
+                        />
+                        <InfoItem
+                          icon={<FiGlobe className="text-cyan-600" />}
+                          label="Timezone"
+                          value={localTime.timezone}
+                        />
+                        {country.timezones && country.timezones.length > 1 && (
+                          <div>
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 rounded-lg mt-1 bg-blue-50 text-blue-600">
+                                <FiClock />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium mb-2 text-gray-500">
+                                  All Timezones
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {country.timezones.map((tz) => (
+                                    <span
+                                      key={tz}
+                                      className="px-3 py-1.5 rounded-lg text-sm bg-gray-100 text-gray-800"
+                                    >
+                                      {tz}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-gray-500">Time data not available</p>
                     )}
-
-                    <InfoItem
-                      icon={<FiTrendingUp />}
-                      label="Exports"
-                      value={country.exports || "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiTrendingDown />}
-                      label="Imports"
-                      value={country.imports || "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiGlobe />}
-                      label="Trade Partners"
-                      value={country.tradePartners || "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiDollarSign />}
-                      label="Inflation Rate"
-                      value={country.inflation ? `${country.inflation}%` : "—"}
-                    />
                   </div>
-                </motion.div>
-              </div>
-            )}
-
-            {/* Climate Tab */}
-            {activeTab === "climate" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <motion.div
-                  variants={cardVariants}
-                  initial="hidden"
-                  animate="visible"
-                  transition={{ delay: 0.1 }}
-                  className="p-6 rounded-2xl shadow-md"
-                  style={{ backgroundColor: "var(--color-surface)" }}
-                >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
-                    Weather & Climate
-                  </h2>
-                  {weather ? (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h3
-                            className="text-lg font-medium mb-1"
-                            style={{ color: "var(--color-text)" }}
-                          >
-                            Current Weather in {country.capital?.[0]}
-                          </h3>
-                          <p
-                            className="text-sm"
-                            style={{ color: "var(--color-text-light)" }}
-                          >
-                            {new Date(weather.dt * 1000).toLocaleDateString(
-                              "en-US",
-                              {
-                                weekday: "long",
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                              }
-                            )}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={`http://openweathermap.org/img/wn/${weather.weather[0].icon}@2x.png`}
-                            alt={weather.weather[0].description}
-                            width="60"
-                            height="60"
-                          />
-                          <span
-                            className="text-3xl font-bold"
-                            style={{ color: "var(--color-text)" }}
-                          >
-                            {Math.round(weather.main.temp)}°C
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div
-                          className="p-4 rounded-xl"
-                          style={{ backgroundColor: "rgba(0, 123, 255, 0.05)" }}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <FiThermometer
-                              style={{ color: "var(--color-primary)" }}
-                            />
-                            <span
-                              className="text-sm font-medium"
-                              style={{ color: "var(--color-text-light)" }}
-                            >
-                              Feels Like
-                            </span>
-                          </div>
-                          <p
-                            className="text-xl font-bold"
-                            style={{ color: "var(--color-text)" }}
-                          >
-                            {Math.round(weather.main.feels_like)}°C
-                          </p>
-                        </div>
-
-                        <div
-                          className="p-4 rounded-xl"
-                          style={{ backgroundColor: "rgba(0, 180, 216, 0.05)" }}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <FiDroplet
-                              style={{ color: "var(--color-accent)" }}
-                            />
-                            <span
-                              className="text-sm font-medium"
-                              style={{ color: "var(--color-text-light)" }}
-                            >
-                              Humidity
-                            </span>
-                          </div>
-                          <p
-                            className="text-xl font-bold"
-                            style={{ color: "var(--color-text)" }}
-                          >
-                            {weather.main.humidity}%
-                          </p>
-                        </div>
-
-                        <div
-                          className="p-4 rounded-xl"
-                          style={{
-                            backgroundColor: "rgba(90, 190, 255, 0.05)",
-                          }}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <FiWind
-                              style={{ color: "var(--color-primary-light)" }}
-                            />
-                            <span
-                              className="text-sm font-medium"
-                              style={{ color: "var(--color-text-light)" }}
-                            >
-                              Wind
-                            </span>
-                          </div>
-                          <p
-                            className="text-xl font-bold"
-                            style={{ color: "var(--color-text)" }}
-                          >
-                            {Math.round(weather.wind.speed * 3.6)} km/h
-                          </p>
-                        </div>
-
-                        <div
-                          className="p-4 rounded-xl"
-                          style={{ backgroundColor: "rgba(255, 193, 7, 0.05)" }}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <FiCloudRain
-                              style={{ color: "var(--color-warning)" }}
-                            />
-                            <span
-                              className="text-sm font-medium"
-                              style={{ color: "var(--color-text-light)" }}
-                            >
-                              Pressure
-                            </span>
-                          </div>
-                          <p
-                            className="text-xl font-bold"
-                            style={{ color: "var(--color-text)" }}
-                          >
-                            {weather.main.pressure} hPa
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p
-                          className="capitalize text-center text-lg italic"
-                          style={{ color: "var(--color-text-light)" }}
-                        >
-                          "{weather.weather[0].description}"
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p style={{ color: "var(--color-text-light)" }}>
-                      Weather data not available
-                    </p>
-                  )}
                 </motion.div>
 
                 <motion.div
@@ -1329,39 +768,57 @@ const CountryDetail = () => {
                   initial="hidden"
                   animate="visible"
                   transition={{ delay: 0.2 }}
-                  className="p-6 rounded-2xl shadow-md"
-                  style={{ backgroundColor: "var(--color-surface)" }}
+                  className="p-6 rounded-2xl shadow-md bg-white"
                 >
-                  <h2
-                    className="text-xl font-bold mb-6"
-                    style={{ color: "var(--color-text)" }}
-                  >
-                    Seasonal Information
+                  <h2 className="text-xl font-bold mb-6 text-gray-900">
+                    Currency Information
                   </h2>
                   <div className="space-y-6">
-                    <InfoItem
-                      icon={<FiSun />}
-                      label="Average Summer Temp"
-                      value={country.summerTemp || "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiMoon />}
-                      label="Average Winter Temp"
-                      value={country.winterTemp || "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiCloudRain />}
-                      label="Annual Rainfall"
-                      value={country.rainfall || "—"}
-                    />
-
-                    <InfoItem
-                      icon={<FiCalendar />}
-                      label="Best Time to Visit"
-                      value={country.bestTimeToVisit || "—"}
-                    />
+                    {country.currencies ? (
+                      <>
+                        {Object.entries(country.currencies).map(
+                          ([code, currency]) => (
+                            <div key={code} className="space-y-4">
+                              <InfoItem
+                                icon={
+                                  <FiDollarSign className="text-green-600" />
+                                }
+                                label="Currency"
+                                value={`${currency.name} (${code})`}
+                              />
+                              <InfoItem
+                                icon={
+                                  <FiDollarSign className="text-green-600" />
+                                }
+                                label="Symbol"
+                                value={currency.symbol || "—"}
+                              />
+                              {exchangeRates && code === exchangeRates.base && (
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                  <h3 className="font-medium text-blue-800 mb-2">
+                                    Exchange Rates (to USD)
+                                  </h3>
+                                  <div className="space-y-2">
+                                    <p className="text-gray-900">
+                                      1 {code} ={" "}
+                                      {(1 / exchangeRates.rate).toFixed(4)} USD
+                                    </p>
+                                    <p className="text-gray-900">
+                                      1 USD = {exchangeRates.rate.toFixed(4)}{" "}
+                                      {code}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-gray-500">
+                        Currency data not available
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               </div>
