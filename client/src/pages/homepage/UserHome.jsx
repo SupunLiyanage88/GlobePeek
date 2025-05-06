@@ -11,7 +11,7 @@ import Loader from "../../components/layout/Loader/Loader";
 function UserHome() {
   const [countries, setCountries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);  
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const getCountries = async () => {
@@ -35,7 +35,7 @@ function UserHome() {
     <div className="max-h-screen w-full">
       <ImageHeader />
       <div className="p-6 bg-background min-h-screen">
-        <div>
+        <div id="website-intro">
           <WebsiteIntro />
         </div>
         <div>

@@ -336,8 +336,13 @@ const ImageHeader = () => {
               </motion.div>
 
               {/* CTA button */}
-              <motion.a
-                href="/explore"
+              <motion.button
+                onClick={() => {
+                  const introSection = document.getElementById("website-intro");
+                  if (introSection) {
+                    introSection.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
                 className="px-8 py-4 rounded-full text-lg font-medium transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                 style={{
                   backgroundColor: colors.surface,
@@ -350,7 +355,7 @@ const ImageHeader = () => {
                 transition={{ delay: 0.9, duration: 0.5 }}
               >
                 Explore Destinations
-              </motion.a>
+              </motion.button>
             </motion.div>
           </div>
         </ModernImagesSlider>
