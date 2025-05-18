@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion } from "framer-motion";
-import debounce from 'lodash.debounce';
+import debounce from "lodash/debounce";
 
 // Fix for default marker icons
 import icon from "leaflet/dist/images/marker-icon.png";
