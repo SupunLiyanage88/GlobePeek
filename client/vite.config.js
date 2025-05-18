@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import commonjs from '@rollup/plugin-commonjs'; // Proper import
 
 export default defineConfig({
   plugins: [
@@ -10,24 +11,18 @@ export default defineConfig({
   resolve: {
     alias: {
       // Force all lodash/debounce imports to use the specific package
-      'lodash/debounce': 'lodash.debounce',
-      // Alternative if using lodash-es
-      'lodash/debounce': 'lodash-es/debounce'
+      'lodash/debounce': 'lodash.debounce'
     }
   },
   optimizeDeps: {
-    include: [
-      'lodash.debounce',
-      'lodash-es/debounce'
-    ],
-    exclude: ['lodash'] // Prevent duplicate bundling
+    include: ['lodash.debounce'],
+    exclude: ['lodash']
   },
   build: {
     rollupOptions: {
-      external: ['lodash'], // Externalize lodash completely
+      external: ['lodash'],
       plugins: [
-        // Add rollup plugin to handle commonjs if needed
-        require('@rollup/plugin-commonjs')()
+        commonjs() // Properly initialized plugin
       ]
     }
   }
