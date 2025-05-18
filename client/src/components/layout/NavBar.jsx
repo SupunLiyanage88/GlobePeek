@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate , useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
+import { FiMenu, FiX, FiLogOut } from "react-icons/fi";
+import { useAuth } from "../../contexts/authContext";
 import logo from "../../assets/logo/icon.png";
 import NavTabs from "../animata/container/nav-tabs";
-import { FiMenu, FiX } from "react-icons/fi";
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -13,14 +14,20 @@ const Navbar = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const { currentUser, logout } = useAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const shouldHideNavbar = () => {
+    return ["/login", "/register", "/test"].includes(location.pathname);
+  };
 
   const getSelectedTab = () => {
     const path = location.pathname;
-    if (path === "/") return "Home";
+    if (path === "/home") return "Home";
     if (path === "/regionExplorer") return "Regions";
     if (path === "/countryCompare") return "Compare";
     if (path === "/explore") return "Explore";
-    return "Explore"; // default
+    return "Explore"; 
   };
 
   const [selectedTab, setSelectedTab] = useState(getSelectedTab());
@@ -33,7 +40,6 @@ const Navbar = () => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
-      // Always show navbar when at top of page
       if (currentScrollY <= 10) {
         setVisible(true);
         setScrolled(false);
@@ -43,12 +49,9 @@ const Navbar = () => {
 
       setScrolled(currentScrollY > 10);
 
-      // Hide/show logic
       if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Scrolling down
         setVisible(false);
       } else if (currentScrollY < lastScrollY) {
-        // Scrolling up
         setVisible(true);
       }
 
@@ -75,6 +78,44 @@ const Navbar = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  const getUserInitial = () => {
+    if (currentUser?.displayName) {
+      return currentUser.displayName.charAt(0).toUpperCase();
+    }
+    if (currentUser?.email) {
+      return currentUser.email.charAt(0).toUpperCase();
+    }
+    return "U";
+  };
+
+  const getUserAvatar = () => {
+    if (currentUser?.photoURL) {
+      return (
+        <img
+          src={currentUser.photoURL}
+          alt="User"
+          className="h-full w-full rounded-full object-cover"
+        />
+      );
+    }
+    return (
+      <span className="text-gray-600 font-medium">{getUserInitial()}</span>
+    );
+  };
+
+  if (shouldHideNavbar()) {
+    return null;
+  }
+
   return (
     <motion.nav
       className={`fixed w-full top-0 z-50 ${scrolled ? "shadow-md" : ""}`}
@@ -93,7 +134,6 @@ const Navbar = () => {
           }}
           transition={{ duration: 0.3 }}
         >
-          {/* Rest of your navbar content remains the same */}
           <div className="container mx-auto px-4 sm:px-6 lg:px-10">
             <div className="flex items-center justify-between py-2 md:py-0">
               {/* Logo Section */}
@@ -128,10 +168,10 @@ const Navbar = () => {
                       selected={selectedTab}
                       setSelected={(tab) => {
                         setSelectedTab(tab);
-                        if (tab === "Home") navigate("/");
+                        if (tab === "Home") navigate("/home");
                         else if (tab === "Regions") navigate("/regionExplorer");
                         else if (tab === "Compare") navigate("/countryCompare");
-                        else if (tab === "Explore") navigate("/explore");                        
+                        else if (tab === "Explore") navigate("/explore");
                       }}
                     />
                   </motion.div>
@@ -158,16 +198,44 @@ const Navbar = () => {
               )}
 
               {/* Desktop User Avatar */}
-              {windowWidth > 768 && (
-                <div className="flex justify-end w-32 md:w-40">
+              {windowWidth > 768 && currentUser && (
+                <div className="flex justify-end w-32 md:w-40 relative">
                   <motion.div
-                    className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center"
+                    className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer overflow-hidden"
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   >
-                    <span className="text-gray-600">U</span>
+                    {getUserAvatar()}
                   </motion.div>
+
+                  {/* User Dropdown */}
+                  {isDropdownOpen && (
+                    <motion.div
+                      className="absolute top-12 right-0 w-56 bg-white rounded-lg shadow-lg py-2 z-50"
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <div className="px-4 py-2 border-b border-gray-100">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {currentUser.displayName || "User"}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {currentUser.email}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <FiLogOut />
+                        Sign Out
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
               )}
             </div>
@@ -191,7 +259,7 @@ const Navbar = () => {
                         if (tab === "Regions") {
                           navigate("/regionExplorer");
                         } else if (tab === "Home") {
-                          navigate("/");
+                          navigate("/home");
                         } else if (tab === "Compare") {
                           navigate("/countryCompare");
                         } else if (tab === "Explore") {
@@ -210,14 +278,30 @@ const Navbar = () => {
                     </motion.button>
                   ))}
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                  <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                    <span className="text-gray-600">U</span>
+                {currentUser && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
+                        {getUserAvatar()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {currentUser.displayName || "User"}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {currentUser.email}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full px-4 py-2 text-sm text-gray-600 hover:text-primary flex items-center gap-2 justify-center border border-gray-200 rounded-lg"
+                    >
+                      <FiLogOut />
+                      Sign Out
+                    </button>
                   </div>
-                  <button className="text-sm text-gray-600 hover:text-primary">
-                    Sign Out
-                  </button>
-                </div>
+                )}
               </motion.div>
             )}
           </div>
