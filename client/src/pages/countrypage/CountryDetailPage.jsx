@@ -22,10 +22,14 @@ import {
   FiShield,
   FiGrid,
   FiCopy,
+  FiCalendar
 } from "react-icons/fi";
 import { fetchCountryByCode } from "../../api/countryApi";
 import { cardVariants } from "../../lib/variants";
 import CountryHeader from "../components/countryPage/CountryHeader";
+import { db } from "../../services/firebase";
+import { doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 const googleMapKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -95,20 +99,44 @@ const CountryDetail = () => {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  const [savedCountries, setSavedCountries] = useState(() => {
-    const saved = localStorage.getItem("savedCountries");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [isSaved, setIsSaved] = useState(false);
   const [exchangeRates, setExchangeRates] = useState(null);
+  const [savedCountries, setSavedCountries] = useState([]);
+  const [isSaved, setIsSaved] = useState(false);
   const [localTime, setLocalTime] = useState(null);
 
+  const getStorageKey = (uid) => `savedCountries_${uid}`;
+
+  // Handle auth state changes
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is signed in
+        const storageKey = getStorageKey(user.uid);
+        const saved = localStorage.getItem(storageKey);
+        setSavedCountries(saved ? JSON.parse(saved) : []);
+      } else {
+        // User is signed out
+        setSavedCountries([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Check if current country is saved when country or savedCountries changes
+  useEffect(() => {
+    if (country) {
+      setIsSaved(savedCountries.includes(country.cca3));
+    }
+  }, [country, savedCountries]);
+
+  // Fetch country data
   useEffect(() => {
     const fetchCountry = async () => {
       try {
         const data = await fetchCountryByCode(countryCode);
         setCountry(data);
-        checkIfSaved(data.cca3);
         setLoading(false);
         fetchExchangeRates(data);
         calculateLocalTime(data);
@@ -140,7 +168,7 @@ const CountryDetail = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const usdRate = 1 / data.rates.USD; // Convert to how much USD is worth in local currency
+        const usdRate = 1 / data.rates.USD;
         setExchangeRates({
           base: currencyCode,
           rate: usdRate,
@@ -195,22 +223,57 @@ const CountryDetail = () => {
     return new Intl.NumberFormat().format(num);
   };
 
-  const checkIfSaved = (code) => {
-    setIsSaved(savedCountries.includes(code));
-  };
+  const toggleSaveCountry = async () => {
+    const auth = getAuth();
+    const user = auth.currentUser;
 
-  const toggleSaveCountry = () => {
-    let updatedSavedList;
-
-    if (isSaved) {
-      updatedSavedList = savedCountries.filter((c) => c !== country.cca3);
-    } else {
-      updatedSavedList = [...savedCountries, country.cca3];
+    if (!user) {
+      navigate("/login");
+      return;
     }
 
-    setSavedCountries(updatedSavedList);
-    localStorage.setItem("savedCountries", JSON.stringify(updatedSavedList));
-    setIsSaved(!isSaved);
+    try {
+      const countryRef = doc(
+        db,
+        "users",
+        user.uid,
+        "savedCountries",
+        country.cca3
+      );
+
+      if (isSaved) {
+        // Remove from Firestore
+        await deleteDoc(countryRef);
+        // Update local state
+        const updatedSavedList = savedCountries.filter(
+          (c) => c !== country.cca3
+        );
+        setSavedCountries(updatedSavedList);
+        localStorage.setItem(
+          getStorageKey(user.uid),
+          JSON.stringify(updatedSavedList)
+        );
+      } else {
+        // Add to Firestore
+        await setDoc(countryRef, {
+          countryCode: country.cca3,
+          name: country.name.common,
+          flag: country.flags.svg,
+          savedAt: new Date(),
+        });
+        // Update local state
+        const updatedSavedList = [...savedCountries, country.cca3];
+        setSavedCountries(updatedSavedList);
+        localStorage.setItem(
+          getStorageKey(user.uid),
+          JSON.stringify(updatedSavedList)
+        );
+      }
+
+      setIsSaved(!isSaved);
+    } catch (error) {
+      console.error("Error updating saved countries:", error);
+    }
   };
 
   if (loading) {

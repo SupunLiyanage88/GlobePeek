@@ -10,13 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@react-firebase/auth": "^0.2.10",
     "@tabler/icons-react": "^3.31.0",
     "@tailwindcss/vite": "^4.1.4",
     "axios": "^1.8.4",
     "chart.js": "^4.4.9",
     "clsx": "^2.1.1",
     "countup": "^1.8.2",
-    "framer-motion": "^12.8.0",
+    "firebase": "^11.7.3",
+    "framer-motion": "^12.12.1",
     "gl-matrix": "^3.4.3",
     "leaflet": "^1.9.4",
     "lodash": "^4.17.21",
@@ -29,8 +32,10 @@
     "react-error-boundary": "^5.0.0",
     "react-icons": "^5.5.0",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.5.1",
-    "tailwind-merge": "^3.2.0"
+    "react-router-dom": "^7.6.0",
+    "react-toastify": "^11.0.5",
+    "tailwind-merge": "^3.2.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

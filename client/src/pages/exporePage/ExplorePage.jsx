@@ -15,6 +15,14 @@ import {
 } from "../../api/countryApi";
 import { useNavigate } from "react-router-dom";
 import Loader from "../../components/layout/Loader/Loader";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 const CountryCard = memo(({ country, isSaved }) => {
   const navigate = useNavigate();
@@ -31,7 +39,7 @@ const CountryCard = memo(({ country, isSaved }) => {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3 }}
       className="relative overflow-hidden rounded-xl shadow-md group cursor-pointer"
-      style={{ backgroundColor: 'var(--color-surface)' }}
+      style={{ backgroundColor: "var(--color-surface)" }}
       onClick={handleClick}
     >
       <div className="aspect-w-16 aspect-h-9 overflow-hidden">
@@ -113,6 +121,57 @@ const ExplorePage = () => {
     }
   }, []);
 
+  const fetchSavedCountries = async () => {
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+
+      if (!user) {
+        console.log("No authenticated user");
+        return [];
+      }
+
+      const db = getFirestore();
+      const savedCountriesRef = collection(
+        db,
+        `users/${user.uid}/savedCountries`
+      );
+      const querySnapshot = await getDocs(savedCountriesRef);
+
+      // Extract country codes from documents
+      const saved = [];
+      querySnapshot.forEach((doc) => {
+        saved.push(doc.id); // Assuming countryId is the document ID
+      });
+
+      return saved;
+    } catch (error) {
+      console.error("Error fetching saved countries:", error);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    const fetchSaved = async () => {
+      try {
+        const saved = await fetchSavedCountries();
+        setSavedCountries(saved);
+
+        // Also store in localStorage as fallback
+        localStorage.setItem("savedCountries", JSON.stringify(saved));
+      } catch (error) {
+        console.error("Error loading saved countries:", error);
+        // Fallback to localStorage if Firestore fails
+        const localSaved = localStorage.getItem("savedCountries");
+        if (localSaved) {
+          setSavedCountries(JSON.parse(localSaved));
+        }
+      }
+    };
+
+    fetchSaved();
+  }, []);
+
   // Fetch countries based on selected region
   useEffect(() => {
     const fetchData = async () => {
@@ -180,8 +239,8 @@ const ExplorePage = () => {
 
   // Optimized filtering with memoization
   const filteredCountries = useMemo(() => {
-    // When searching or showing liked only, we need to search through all countries
-    const source = searchTerm || showLikedOnly ? allCountries : displayedCountries;
+    const source =
+      searchTerm || showLikedOnly ? allCountries : displayedCountries;
 
     if (source.length === 0) return [];
     if (!searchTerm && !showLikedOnly) return source;
@@ -189,13 +248,11 @@ const ExplorePage = () => {
     const searchTermLower = searchTerm.toLowerCase().trim();
 
     return source.filter((country) => {
-      // Filter by search term
       const matchesSearch =
         !searchTermLower ||
         country.name.common.toLowerCase().includes(searchTermLower) ||
         country.name.official.toLowerCase().includes(searchTermLower);
 
-      // Filter by liked status if enabled
       const matchesLiked =
         !showLikedOnly || savedCountries.includes(country.cca3);
 
@@ -215,9 +272,7 @@ const ExplorePage = () => {
   }, []);
 
   if (loading) {
-    return (
-      <Loader />
-    );
+    return <Loader />;
   }
 
   if (error) {
