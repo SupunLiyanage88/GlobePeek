@@ -11,7 +11,6 @@ import "leaflet/dist/leaflet.css";
 import { motion } from "framer-motion";
 import debounce from "lodash/debounce";
 
-
 // Fix for default marker icons
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
