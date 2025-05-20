@@ -1,5 +1,6 @@
-# GlobePeek 🌎
-A modern, interactive web application for exploring countries around the world built with React, Vite, REST Countries API, and Firebase.
+## GlobePeek 🌎
+GlobePeek is a modern, interactive web application that allows users to explore countries around the world. Built using React, Vite, the REST Countries API, and Firebase, this project was developed as part of a university front-end coursework assignment via GitHub Classroom.
+ ## 🔒 Although the classroom repository is private, you're welcome to explore and reuse the code from this hosted version.
 
 ## ✨ Features
 - **Country Explorer**: Browse through countries with rich details including population, area, languages, and more
