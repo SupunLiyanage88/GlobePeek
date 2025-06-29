@@ -19,7 +19,7 @@ export const fetchAllCountries = async (useCache = true) => {
       return cache.allCountries;
     }
 
-    const response = await apiClient.get("/v3.1/all");
+    const response = await apiClient.get("/v3.1/all?fields=name,flags,region,capital");
     cache.allCountries = response.data;
     return response.data;
   } catch (error) {
