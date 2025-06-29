@@ -67,22 +67,42 @@ const CountryCompare = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm]);
 
-  const addCountry = async (countryCode) => {
-    if (selectedCountries.length >= 4) return;
-    if (selectedCountries.some(c => c.cca3 === countryCode)) return;
+const addCountry = async (countryCode) => {
+  console.log('Attempting to add country with code:', countryCode); // Debug log
+
+  console.log("Adding country with code:", countryCode); // Debug log
+  if (!countryCode) {
+    console.error("No country code provided!");
+    setError("Invalid country code");
+    return;
+  }
+  
+  if (selectedCountries.length >= 4) return;
+  if (selectedCountries.some(c => c.cca3 === countryCode)) {
+    console.log('Country already added:', countryCode); // Debug log
+    return;
+  }
+  
+  setLoading(true);
+  try {
+    console.log('Fetching country data for:', countryCode); // Debug log
+    const countryData = await fetchCountryByCode(countryCode);
+    console.log('Received country data:', countryData); // Debug log
     
-    setLoading(true);
-    try {
-      const countryData = await fetchCountryByCode(countryCode);
-      setSelectedCountries(prev => [...prev, countryData]);
-      setSearchTerm('');
-      setShowSearchResults(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!countryData) {
+      throw new Error('No country data returned');
     }
-  };
+    
+    setSelectedCountries(prev => [...prev, countryData]);
+    setSearchTerm('');
+    setShowSearchResults(false);
+  } catch (err) {
+    console.error('Error adding country:', err); // Debug log
+    setError(`Failed to add country: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const removeCountry = (countryCode) => {
     setSelectedCountries(prev => prev.filter(c => c.cca3 !== countryCode));
@@ -169,7 +189,7 @@ const CountryCompare = () => {
 
   return (
     <div style={{ backgroundColor: 'var(--color-background)', minHeight: '100vh' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 mt-10">
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
